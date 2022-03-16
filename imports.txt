@@ -1,0 +1,10 @@
+from transformers import pipeline
+	conda install -c huggingface transformers
+import spacy
+	conda install spacy
+	python -m spacy download en_core_web_sm
+
+from nltk.corpus import stopwords
+nltk.download('stopwords')
+from nltk.tokenize import word_tokenize
+	conda install nltk
