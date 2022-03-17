@@ -7,7 +7,7 @@ from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 import os
 from TermNode import *
-#from parseXML import *
+from parseXML import *
 from transformers import pipeline
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
@@ -76,6 +76,38 @@ def parse_sentence(xml: list) -> dict:
 
     return nodes
 
+def parse_names(xml: list) -> dict:
+    '''
+    parse xml files in dataset to find names and types of drugs
+    does not account for links, but isolates the named entities
+
+    @params:
+        xml: the current file being passed in
+
+    @returns:
+        a list of names
+    '''
+
+    nodes = list()
+
+    for line in xml:
+        if ("type" and "text" in line) and ("sentence" not in line):
+            
+            curr_quote = line.find("\"") + 1
+            next_quote = line.find("\"", curr_quote)
+
+            kind = line[curr_quote:next_quote]
+
+            curr_quote = line.find("\"", next_quote + 1) + 1
+            next_quote = line.find("\"", curr_quote)
+
+            name = line[curr_quote:next_quote].lower()
+
+            if name not in nodes:
+                nodes.append(name)
+
+    return nodes
+
 def parse_effects2str(xml :list):#, nodes :dict):
     effects = list()
     for line in xml:
@@ -140,8 +172,15 @@ def parse_sen2corpus(xml :list):
 def files2corpus(file_names :list):
     sents = list()
     for n in file_names:
-        sents.append(parse_file2list(n))
+        sents.append(parse_file2list(n, "string"))
     corpus = list2str(sents)
+    return corpus
+
+def files2list(file_names :list):
+    sents = list()
+    for n in file_names:
+        sents.extend(parse_file2list(n, "list"))
+    return sents
 
 def segment_and_tokenize(corpus):
 	#make sure to run: 
@@ -187,7 +226,8 @@ def remove_infrequent_words(sents):
 def filter_stop(corpus):
     sp = spacy.load('en_core_web_sm')
     # all_stopwords = sp.Defaults.stop_words
-    all_stopwords = "in","to", "an", "a", "the"
+    all_stopwords = ["in","to", "an", "a", "the", "sentence", "text=", "brand", "<?xml version=\"1.0\" encoding=\"UTF-8\"?>", "\'\'", "``", "version=", "xml", "e1=", "group", "drug"
+        "document", "id=", "</", ">", "<", "/>", "\'", "\"", ",",".", "type=", "entity", "/", "charOffset=", "/sentence", "/document", "and", "ddi", "encoding="]
     text_tokens = word_tokenize(corpus)
     tokens_without_sw= [word for word in text_tokens if not word in all_stopwords]
     return tokens_without_sw
@@ -212,22 +252,25 @@ def filter_stop(corpus):
 
 # segment_and_tokenize(file_list2str)
 dirfiles = listFilePaths(0,5,1)
-unfiltered_corpus = list()
-for file in dirfiles[0]:
-    unfiltered_corpus.append(parse_effects2str(parse_file2list(file)))   
-unfiltered_corpus = list2str(unfiltered_corpus)
-corpus = list2str(filter_stop(unfiltered_corpus))
+# unfiltered_corpus = list()
+# for file in dirfiles[0]:
+#     unfiltered_corpus.append(parse_effects2str(parse_file2list(file)))   
+# unfiltered_corpus = list2str(unfiltered_corpus)
+# corpus = list2str(filter_stop(unfiltered_corpus))
 # print(corpus)
 
+names = parse_names(files2list(dirfiles[0]))
 
+corpus = list2str(filter_stop(files2corpus(dirfiles[0])))
 
+# print(corpus)
 
 
 ##########################  TEXT GENERATION  ##########################
 
 
 
-prompt = "The combined effects are: "
+prompt = "The combined of " + " and ".join(names) + " effects are: "
 
 model = AutoModelForCausalLM.from_pretrained("xlnet-base-cased")
 tokenizer = AutoTokenizer.from_pretrained("xlnet-base-cased")
